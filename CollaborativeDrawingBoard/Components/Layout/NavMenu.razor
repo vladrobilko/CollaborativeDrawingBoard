@@ -1,0 +1,69 @@
+﻿@using CollaborativeDrawingBoard.Helpers
+@using CollaborativeDrawingBoard.Models
+@using CollaborativeDrawingBoard.Services
+@inject IBoardService BoardService
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <p class="navbar-brand">Collaborative board</p>
+        <button title="Navigation menu" class="navbar-toggler">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+    </div>
+</div>
+
+<nav class="flex-column">
+    <div class="nav-item px-3">
+        <form>
+            <div class="mb-3">
+                <label for="boardName" class="form-label" style="color: white;">Enter your name:</label>
+                <input type="text" class="form-control" id="boardName" @bind="CreatorName" required>
+                <div class="invalid-feedback">Please enter your name.</div>
+            </div>
+            <button type="button" class="btn btn-primary" @onclick="CreateBoard">Create board</button>
+        </form>
+    </div>
+</nav>
+
+@code {
+    [Inject]
+    private NavigationManager Navigation { get; set; }
+
+    public int screenWidth { get; set; }
+
+    public int screenHeight { get; set; }
+
+    public string CreatorName { get; set; }
+
+    private bool isValid = true;
+
+    private async Task CreateBoard()
+    {
+        if (!string.IsNullOrWhiteSpace(CreatorName))
+        {
+            var board = CreateBoardInstance();
+            var id = await BoardService.CreateBoardAsync(board);
+            Navigation.NavigateTo($"/board/{id}");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            screenWidth = await JsRuntime.InvokeAsync<int>("screenSize.getWidth");
+            screenHeight = await JsRuntime.InvokeAsync<int>("screenSize.getHeight");
+        }
+    }
+
+    private Board CreateBoardInstance()
+    {
+        return new Board()
+            {
+                CreatorName = CreatorName,
+                Svg = SvgHelper.GetEmptySvgWithUserScreen(screenWidth, screenHeight)
+            };
+    }
+}

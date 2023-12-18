@@ -1,0 +1,19 @@
+﻿.canvas-wrapper {
+    position: relative;
+}
+
+.canvas-container {
+    position: relative;
+}
+
+.clear-button {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1;
+}
+
+.drawing-canvas {
+    border: 1px solid #000;
+    z-index: 0;
+}

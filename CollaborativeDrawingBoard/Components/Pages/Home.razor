@@ -1,0 +1,58 @@
+﻿@page "/"
+@using CollaborativeDrawingBoard.Helpers
+@using CollaborativeDrawingBoard.Services
+@using CollaborativeDrawingBoard.Models
+@using Microsoft.AspNetCore.SignalR.Client
+@inject IBoardService BoardService
+@inject IJSRuntime JS
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Boards</PageTitle>
+<div>
+    <h1>Welcome to the Collaborative Board App!</h1>
+    <p>Create your own board or press on board to join!</p>
+</div>
+
+<div class="svg-container">
+    @foreach (var board in Boards)
+    {
+        <div class="svg-item">
+            <a href="/board/@board.Id">
+                <p>Creator: @board.CreatorName</p>
+                <div>
+                    @((Microsoft.AspNetCore.Components.MarkupString)SvgHelper.ChangeViewSize(board.Svg, 100, 100))
+                </div>
+            </a>
+        </div>
+    }
+</div>
+
+@code {
+    List<Board> Boards = new List<Board>();
+    private HubConnection? hubConnection;
+    private bool isDataLoaded = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!isDataLoaded)
+        {
+            Boards = await BoardService.GetReverseBoardsAsync();
+            isDataLoaded = true;
+        }
+        HandleRefreshBoards();
+        if (hubConnection.State == HubConnectionState.Disconnected) await hubConnection.StartAsync();
+    }
+
+    private void HandleRefreshBoards()
+    {
+        hubConnection = new HubConnectionBuilder()
+        .WithUrl(Navigation.ToAbsoluteUri("/boardhub"))
+        .Build();
+        hubConnection.On<List<Board>>("RefreshBoards", boards =>
+        {
+            Boards = boards;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+}

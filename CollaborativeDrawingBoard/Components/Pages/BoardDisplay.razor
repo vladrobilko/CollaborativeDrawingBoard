@@ -1,0 +1,84 @@
+﻿@using CollaborativeDrawingBoard.Helpers
+@using CollaborativeDrawingBoard.Models
+@using CollaborativeDrawingBoard.Services
+@using CollaborativeDrawingBoard.Components.Layout
+@using Microsoft.AspNetCore.SignalR.Client
+@inject NavigationManager Navigation
+@layout BodyOnlyLayout
+@inject IBoardService BoardService
+@inject IJSRuntime JsRuntime
+@rendermode InteractiveServer
+@page "/board/{id}"
+
+<div class="canvas-wrapper">
+    <div class="canvas-container">
+        <button type="button" class="btn btn-danger clear-button" @onclick="ClearBoard">Clear Image</button>
+        <canvas id="drawingCanvas" class="drawing-canvas" width="@screenWidth" height="@screenHeight"></canvas>
+    </div>
+</div>
+
+
+@code {
+    [Parameter]
+    public string Id { get; set; }
+
+    private bool hasRendered { get; set; }
+
+    private string svgContent;
+
+    private HubConnection? hubConnection;
+
+    private bool isDataLoaded;
+
+    public int screenWidth { get; set; }
+
+    public int screenHeight { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!isDataLoaded)
+        {
+            svgContent = await BoardService.GetSvgContentAsync(int.Parse(Id));
+            isDataLoaded = true;
+        }
+        HandleRefreshBoard();
+        if (hubConnection.State == HubConnectionState.Disconnected) await hubConnection.StartAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await JsRuntime.InvokeVoidAsync("initializeDrawing", DotNetObjectReference.Create(this), svgContent);
+            screenWidth = await JsRuntime.InvokeAsync<int>("screenSize.getWidth");
+            screenHeight = await JsRuntime.InvokeAsync<int>("screenSize.getHeight");
+        }
+        await JsRuntime.InvokeVoidAsync("updateCanvasWithSvg", svgContent);
+    }
+
+    [JSInvokable("ReceiveSvgFromJs")]
+    public async Task ReceiveSvgFromJs(string svgString)
+    {
+        svgContent = svgString;
+        await BoardService.UpdateBoard(int.Parse(Id), svgString);
+        await InvokeAsync(() => StateHasChanged());
+    }
+
+    private void HandleRefreshBoard()
+    {
+        hubConnection = new HubConnectionBuilder()
+         .WithUrl(Navigation.ToAbsoluteUri("/boardhub"))
+         .Build();
+        hubConnection.On<string>("RefreshBoard", svg =>
+        {
+            svgContent = svg;
+            InvokeAsync(StateHasChanged);
+        });
+    }
+
+    private async Task ClearBoard()
+    {
+        await BoardService.UpdateBoard(int.Parse(Id), SvgHelper.GetEmptySvgWithUserScreen(screenWidth, screenHeight));
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <base href="/" />
+    <link rel="stylesheet" href="bootstrap/bootstrap.min.css" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="CollaborativeDrawingBoard.styles.css" />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <HeadOutlet />
+</head>
+
+<body>
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+
+    <script>
+        window.screenSize = {
+            getWidth: function () {
+                return document.documentElement.clientWidth;
+            },
+            getHeight: function () {
+                return document.documentElement.clientHeight;
+            }
+        };
+
+        window.initializeDrawing = (dotnetHelper, initialSvg) => {
+            const canvas = document.getElementById('drawingCanvas');
+            const context = canvas.getContext('2d');
+            let isDrawing = false;
+
+            if (initialSvg) {
+                const img = new Image();
+                img.src = `data:image/svg+xml;base64,${btoa(initialSvg)}`;
+                img.onload = () => {
+                    context.drawImage(img, 0, 0);
+                };
+            }
+
+            canvas.addEventListener('mousedown', handleMouseDown);
+            canvas.addEventListener('mousemove', handleMouseMove);
+            canvas.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('mouseleave', handleMouseLeave);
+
+            async function handleMouseDown(e) {
+                isDrawing = true;
+                context.beginPath();
+                context.moveTo(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top);
+            }
+
+            function handleMouseMove(e) {
+                if (isDrawing) {
+                    context.lineTo(e.clientX - canvas.getBoundingClientRect().left, e.clientY - canvas.getBoundingClientRect().top);
+                    context.stroke();
+                }
+            }
+
+            async function handleMouseUp() {
+                isDrawing = false;
+
+                const svgString = await convertCanvasToSvg(canvas);
+
+                await dotnetHelper.invokeMethodAsync('ReceiveSvgFromJs', svgString);
+            }
+
+            function handleMouseLeave() {
+                isDrawing = false;
+            }
+
+            async function convertCanvasToSvg(canvas) {
+                const imgData = canvas.toDataURL('image/png');
+                const img = new Image();
+                img.src = imgData;
+
+                return new Promise((resolve) => {
+                    img.onload = () => {
+                        const svgString = `<svg xmlns="http://www.w3.org/2000/svg" width="${canvas.width}" height="${canvas.height}">
+                                                <image href="${imgData}" width="${canvas.width}" height="${canvas.height}" />
+                                            </svg>`;
+                        resolve(svgString);
+                    };
+                });
+            }
+        };
+
+        window.updateCanvasWithSvg = (svgContent) => {
+            const canvas = document.getElementById('drawingCanvas');
+            const context = canvas.getContext('2d');
+
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            const img = new Image();
+            img.src = `data:image/svg+xml;base64,${btoa(svgContent)}`;
+            img.onload = () => {
+                context.drawImage(img, 0, 0);
+            };
+        };
+    </script>
+</body>
+
+</html>
